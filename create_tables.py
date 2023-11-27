@@ -35,7 +35,10 @@ def det_orient(poly: list) -> float:
     rect = polygon.minimum_rotated_rectangle
 
     # Extract the coordinates of the rectangle
-    x, y = rect.exterior.coords.xy
+    try:
+        x, y = rect.exterior.coords.xy
+    except:
+        import pdb; pdb.set_trace()
 
     # Calculate edge lengths and determine the longer edge
     edge_lengths = [math.sqrt((x[i] - x[i-1])**2 + (y[i] - y[i-1])**2) for
@@ -94,7 +97,7 @@ def create_instance_table(config, annotations: dict,
     mta_evaluator = evaluators[1]
 
     # Get the dataset info
-    name = annotations['licenses'][0]['name']
+    name = cfg['name']
     height = annotations['images'][0]['height']
     width = annotations['images'][0]['width']
 
@@ -104,8 +107,13 @@ def create_instance_table(config, annotations: dict,
 
         instance_id = ann['id']
         img_id = ann['image_id']
-        polygon = ann['segmentation']
-        area = ann['area']
+        seg = ann['segmentation']
+        polygon = [[min(max(point, 0), min(height, width)) for
+                    point in seg[0]]]
+
+        area = Polygon(np.array(polygon).reshape(-1, 2)).area
+        if area <= 0:
+            continue
         size = det_size(area)
         orient = det_orient(polygon)
         border = touch_border(polygon, width, height)
@@ -148,10 +156,10 @@ if __name__ == '__main__':
 
     ann_file = cfg['annotation_file']
     pred_file = cfg['prediction_file']
+
     # Load coco format files
     annotations = load_json(ann_file)
     results = load_json(pred_file)
-
     polis_evaluator = polis_eval(ann_file, pred_file)
     mta_evaluator = max_angle_error_eval(ann_file, pred_file)
 

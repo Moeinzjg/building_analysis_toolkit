@@ -161,7 +161,8 @@ def compute_polygon_contour_measures(pred_polygons: list, gt_polygons: list, sam
     gt_polygons = shapely.geometry.collection.GeometryCollection(gt_polygons)
     pred_polygons = shapely.geometry.collection.GeometryCollection(pred_polygons)
     # Filter pred_polygons to have at least a precision with gt_polygons of min_precision
-    filtered_pred_polygons = [pred_polygon for pred_polygon in pred_polygons.geoms if min_precision < pred_polygon.intersection(gt_polygons).area / pred_polygon.area]
+    filtered_pred_polygons = [pred_polygon for pred_polygon in pred_polygons.geoms if pred_polygon.intersects(gt_polygons) and pred_polygon.area > 0]
+    filtered_pred_polygons = [pred_polygon for pred_polygon in filtered_pred_polygons if min_precision < pred_polygon.intersection(gt_polygons).area / pred_polygon.area]
     # Extract contours of gt polygons
     gt_contours = shapely.geometry.collection.GeometryCollection([contour for polygon in gt_polygons.geoms for contour in [polygon.exterior, *polygon.interiors]])
     # Measure metric for each pred polygon
