@@ -1,4 +1,5 @@
 prediction_file: '<path to prediction results json file in coco format>'
 annotation_file: '<path to annotation json file in coco format>'
+image_dir: '<path to image directory>'
 
 output_dir: '<path to the directory where the outputs are to be saved>'
