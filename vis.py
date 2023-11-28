@@ -70,7 +70,7 @@ def visualize(ANN_FILE: str, PRED_FILE: str, IMAGE_DIR: str,
     dt_polys = defaultdict(dict)
 
     for gt in gts:
-        gt_poly = {gt['id']: np.array(gt['segmentation']).reshape(-1, 2)}  # TODO: add img boundary limit
+        gt_poly = {gt['id']: np.array(gt['segmentation']).reshape(-1, 2)}
         gt_polys[gt['image_id']].update(gt_poly)
     for dt in dts:
         dt_poly = {dt['id']: np.array(dt['segmentation']).reshape(-1, 2)}
