@@ -35,10 +35,7 @@ def det_orient(poly: list) -> float:
     rect = polygon.minimum_rotated_rectangle
 
     # Extract the coordinates of the rectangle
-    try:
-        x, y = rect.exterior.coords.xy
-    except:
-        import pdb; pdb.set_trace()
+    x, y = rect.exterior.coords.xy
 
     # Calculate edge lengths and determine the longer edge
     edge_lengths = [math.sqrt((x[i] - x[i-1])**2 + (y[i] - y[i-1])**2) for
