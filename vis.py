@@ -125,8 +125,8 @@ def visualize(ANN_FILE: str, PRED_FILE: str, IMAGE_DIR: str,
         else:
             dt_polygons = [el for el in dt_polys[img_id].values()]
             gt_polygons = [el for el in gt_polys[img_id].values()]
-            show_polygons(img, dt_polygons, title='Pred')
-            show_polygons(img, gt_polygons, title='GT')
+            show_polygons(img, dt_polygons, title=f'Pred: img {img_id}')
+            show_polygons(img, gt_polygons, title=f'GT: img {img_id}')
 
 
 if __name__ == '__main__':
