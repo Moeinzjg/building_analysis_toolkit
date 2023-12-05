@@ -24,3 +24,4 @@ python create_tables.py
 - [ ] List of img_id, and ins_id of highest errors
 - [ ] Add the option to save the plots
 - [ ] Add plots and analysis of results/annotations
+- [ ] Add web-based interactive graph interface using maube Dash
