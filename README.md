@@ -18,6 +18,9 @@ python create_tables.py
 ```
 
 ## ToDo
-- [ ] Instance-based Visualization 
-- [ ] Image-based table 
-- [ ] TP/FP/FN Mask Visualization 
+- [x] Instance-based Visualization
+- [ ] Image-based table
+- [ ] TP/FP/FN Mask Visualization
+- [ ] List of img_id, and ins_id of highest errors
+- [ ] Add the option to save the plots
+- [ ] Add plots and analysis of results/annotations
