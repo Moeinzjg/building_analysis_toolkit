@@ -10,6 +10,7 @@ from pycocotools.coco import COCO
 
 from metrics.polis import PolisEval
 from metrics.maxtan import ContourEval
+from metrics.ciou import compute_iou_ciou
 
 
 def det_size(area: float) -> str:
@@ -61,9 +62,26 @@ def touch_border(poly: list, width: int, height: int) -> bool:
         return False
 
 
-def create_image_table():
-    # TODO: columns: img_id, iou, coco, ciou, polis
-    pass
+def create_image_table(configs, gti_annotations: dict,
+                       input_json: dict):
+    img_ids, iou, ciou, Ns, N_GTs, N_ratio = compute_iou_ciou(
+        input_json, gti_annotations)
+
+    row_list = []
+    name = configs['name']
+    for i in range(len(img_ids)):
+        # Create the row for image table
+        row_list.append({'image_id': img_ids[i], 'iou': iou[i],
+                         'ciou': ciou[i], 'N_dt': Ns[i],
+                         'N_gt': N_GTs[i], 'N_ratio': N_ratio[i]})
+
+    # Create the instance table
+    df = pd.DataFrame(row_list)
+    print(df)  # Disply the DataFrame
+    # Write to xlsx
+    df.to_excel(osp.join(
+        configs['output_dir'], f"./{configs['name']}_image_based.xlsx"),
+        sheet_name=name)
 
 
 def load_json(file_path):
@@ -139,7 +157,7 @@ def create_instance_table(config, annotations: dict,
     print(df)  # Disply the DataFrame
     # Write to xlsx
     df.to_excel(osp.join(
-        config['output_dir'], './instance_based analysis.xlsx'),
+        config['output_dir'], f"./{config['name']}_instance_based.xlsx"),
         sheet_name=name)
 
 
@@ -162,3 +180,4 @@ if __name__ == '__main__':
 
     # Create tables
     create_instance_table(cfg, annotations, (polis_evaluator, mta_evaluator))
+    create_image_table(cfg, ann_file, pred_file)

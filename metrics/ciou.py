@@ -45,6 +45,9 @@ def compute_iou_ciou(input_json, gti_annotations):
 
     list_iou = []
     list_ciou = []
+    list_N = []
+    list_N_GT = []
+    list_N_ratio = []
     pss = []
     for image_id in pbar:
 
@@ -90,6 +93,9 @@ def compute_iou_ciou(input_json, gti_annotations):
         iou = calc_IoU(mask, mask_gti)
         list_iou.append(iou)
         list_ciou.append(iou * ps)
+        list_N.append(N)
+        list_N_GT.append(N_GT)
+        list_N_ratio.append(N/N_GT)
         pss.append(ps)
         text = "iou: %2.4f, c-iou: %2.4f, ps:%2.4f"
         pbar.set_description(text % (np.mean(list_iou),
@@ -100,3 +106,5 @@ def compute_iou_ciou(input_json, gti_annotations):
     print("Done!")
     print("Mean IoU: ", np.mean(list_iou))
     print("Mean C-IoU: ", np.mean(list_ciou))
+
+    return image_ids, list_iou, list_ciou, list_N, list_N_GT, list_N_ratio
