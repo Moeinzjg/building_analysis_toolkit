@@ -8,12 +8,33 @@ This is the code from https://github.com/zorzi-s/PolyWorldPretrainedNetwork.
   journal={arXiv preprint arXiv:2111.15491},
   year={2021}
 }
+The code is changed to contain instance-based evaluation too.
 """
 import json
 import numpy as np
 from tqdm import tqdm
 from pycocotools import mask as cocomask
 from pycocotools.coco import COCO
+from collections import defaultdict
+from pycocotools import mask as maskUtils
+
+
+def bounding_box(points):
+    """returns a list containing the bottom left and the top right
+    points in the sequence
+    Here, we traverse the collection of points only once,
+    to find the min and max for x and y
+    """
+    bot_left_x, bot_left_y = float('inf'), float('inf')
+    top_right_x, top_right_y = float('-inf'), float('-inf')
+    for x, y in points:
+        bot_left_x = min(bot_left_x, x)
+        bot_left_y = min(bot_left_y, y)
+        top_right_x = max(top_right_x, x)
+        top_right_y = max(top_right_y, y)
+
+    return [bot_left_x, bot_left_y,
+            top_right_x - bot_left_x, top_right_y - bot_left_y]
 
 
 def calc_IoU(a, b):
@@ -108,3 +129,73 @@ def compute_iou_ciou(input_json, gti_annotations):
     print("Mean C-IoU: ", np.mean(list_ciou))
 
     return image_ids, list_iou, list_ciou, list_N, list_N_GT, list_N_ratio
+
+
+class CiouEval():
+    def __init__(self, cocoGt=None, cocoDt=None) -> None:
+        self.cocoGt = cocoGt
+        self.cocoDt = cocoDt
+
+        self._gts = defaultdict(list)
+        self._dts = defaultdict(list)
+        self.imgIds = list(sorted(self.cocoGt.imgs.keys()))
+        self._prepare()
+
+    def _prepare(self):
+        gts = self.cocoGt.loadAnns(self.cocoGt.getAnnIds(imgIds=self.imgIds))
+        dts = self.cocoDt.loadAnns(self.cocoDt.getAnnIds(imgIds=self.imgIds))
+        self._gts = defaultdict(list)       # gt for evaluation
+        self._dts = defaultdict(list)       # dt for evaluation
+        for gt in gts:
+            self._gts[gt['image_id']].append(gt)
+        for dt in dts:
+            self._dts[dt['image_id']].append(dt)
+
+    def eval_inst(self, img_id, ins_id):  # (input_json, gti_annotations):
+        gts = self._gts[img_id]
+        dts = self._dts[img_id]
+
+        if len(gts) == 0 or len(dts) == 0:
+            return -1, -1, -1, -1, -1
+
+        gt_bboxs = [bounding_box(np.array(gt['segmentation'][0]
+                                          ).reshape(-1, 2)
+                                 ) for gt in gts if gt['id'] == ins_id]
+        dt_bboxs = [bounding_box(np.array(dt['segmentation'][0]
+                                          ).reshape(-1, 2)) for dt in dts]
+        gt_polygons = [gt['segmentation'][0]
+                       for gt in gts if gt['id'] == ins_id]
+        dt_polygons = [dt['segmentation'][0]
+                       for dt in dts]
+
+        # IoU match
+        iscrowd = [0] * len(gt_bboxs)
+        box_ious = maskUtils.iou(dt_bboxs, gt_bboxs, iscrowd)
+        matched_idx = np.argmax(box_ious[:, 0])
+
+        # Calculate C-IoU
+        img = self.cocoGt.loadImgs(img_id)[0]
+
+        # making gt mask
+        rle = cocomask.frPyObjects(gt_polygons,
+                                   img['height'], img['width'])
+        gt_m = cocomask.decode(rle)
+        gt_mask = gt_m.reshape((img['height'], img['width']))
+        N_GT = len(gt_polygons[0]) // 2
+        gt_mask = gt_mask != 0
+
+        # making pred mask
+        rle = cocomask.frPyObjects([dt_polygons[matched_idx]],
+                                   img['height'], img['width'])
+        m = cocomask.decode(rle)
+        mask = m.reshape((img['height'], img['width']))
+        N = len(dt_polygons[0]) // 2
+        mask = mask != 0
+
+        # Calculate IoU, C-IoU, and N Ratio
+        ps = 1 - np.abs(N - N_GT) / (N + N_GT + 1e-9)
+        iou = calc_IoU(mask, gt_mask)
+        ciou = iou * ps
+        N_ratio = N / N_GT
+
+        return iou, ciou, N, N_GT, N_ratio

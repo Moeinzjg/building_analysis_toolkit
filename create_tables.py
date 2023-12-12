@@ -10,7 +10,7 @@ from pycocotools.coco import COCO
 
 from metrics.polis import PolisEval
 from metrics.maxtan import ContourEval
-from metrics.ciou import compute_iou_ciou
+from metrics.ciou import compute_iou_ciou, CiouEval
 
 
 def det_size(area: float) -> str:
@@ -89,6 +89,13 @@ def load_json(file_path):
         return json.load(f)
 
 
+def ciou_eval(ann_file, pred_file):
+    gt_coco = COCO(ann_file)
+    pred_coco = gt_coco.loadRes(pred_file)
+    ciou_evaluator = CiouEval(gt_coco, pred_coco)
+    return ciou_evaluator
+
+
 def polis_eval(ann_file, pred_file):
     print('\nCalculating POLIS ...\n')
     gt_coco = COCO(ann_file)
@@ -110,6 +117,7 @@ def create_instance_table(config, annotations: dict,
                           evaluators: tuple) -> None:
     polis_evaluator = evaluators[0]
     mta_evaluator = evaluators[1]
+    ciou_evaluator = evaluators[2]
 
     # Get the dataset info
     name = cfg['name']
@@ -139,12 +147,16 @@ def create_instance_table(config, annotations: dict,
         # Get the corresponding prediction
         polis, box_iou = polis_evaluator.evaluateIns(img_id, instance_id)
         mta = mta_evaluator.evaluate_ins(img_id, instance_id, pool=None)
-
+        iou, ciou, N, N_GT, N_ratio = ciou_evaluator.eval_inst(img_id,
+                                                               instance_id)
+        assert N_GT == vertices
         # Create the row for instance table
         row_list.append({'image_id': img_id, 'instance_id': instance_id,
                          '#vertices': vertices, 'area': area, 'size': size,
                          'orientation': orient, 'touch_border': border,
-                         'polis': polis, 'box_iou': box_iou, 'mta': mta})
+                         'polis': polis, 'box_iou': box_iou, 'mta': mta,
+                         'iou': iou, 'ciou': ciou, '#vertices_pred': N,
+                         'N_diff': N - N_GT, 'N_ratio': N_ratio})
         # NOTE: Box IoU is the IoU between the pred and gt boxes derived
         # from the extrema of the polygons
         # -1 for polis means no polis is calculated because box IoU <= 0.5 and
@@ -177,7 +189,9 @@ if __name__ == '__main__':
     results = load_json(pred_file)
     polis_evaluator = polis_eval(ann_file, pred_file)
     mta_evaluator = max_angle_error_eval(ann_file, pred_file)
+    ciou_evaluator = ciou_eval(ann_file, pred_file)
 
     # Create tables
-    create_instance_table(cfg, annotations, (polis_evaluator, mta_evaluator))
+    create_instance_table(cfg, annotations,
+                          (polis_evaluator, mta_evaluator, ciou_evaluator))
     create_image_table(cfg, ann_file, pred_file)
