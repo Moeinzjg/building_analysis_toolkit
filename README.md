@@ -16,12 +16,28 @@ After that, you can export the tables including instance-wise characteristics an
 ```
 python create_tables.py
 ```
+To visualize the results and annotation you have two options:
+
+1) image-based
+```
+python vis.py --img_id <img_id>
+```
+img_id is available in the output excel files.
+
+2) instance-based
+```
+python vis.py --instance --img_id <img_id> --ins_id <ins_id>
+```
+img_id and ins_id are available in the output excel files.
 
 ## ToDo
 - [x] Instance-based Visualization
-- [ ] Image-based table
-- [ ] TP/FP/FN Mask Visualization
+- [x] Image-based table
+- [x] Add the option to save the plots
+- [x] Add plots and analysis of results/annotations
+- [x] Add interactive graph interface
+- [ ] Add tables of metrics useful for analysis like their med, average, and min/max
 - [ ] List of img_id, and ins_id of highest errors
-- [ ] Add the option to save the plots
-- [ ] Add plots and analysis of results/annotations
-- [ ] Add web-based interactive graph interface using maube Dash
+- [ ] TP/FP/FN Mask Visualization
+- [ ] Add web-based interactive interface using maube Dash (Optional)
+
