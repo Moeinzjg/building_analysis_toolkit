@@ -30,14 +30,19 @@ python vis.py --instance --img_id <img_id> --ins_id <ins_id>
 ```
 img_id and ins_id are available in the output excel files.
 
+To generate the more detaield statistics about your metrics, plus the instance id for each metrics' outliers"
+```
+python report_metrics_stats.py
+``` 
+
 ## ToDo
 - [x] Instance-based Visualization
 - [x] Image-based table
 - [x] Add the option to save the plots
 - [x] Add plots and analysis of results/annotations
 - [x] Add interactive graph interface
-- [ ] Add tables of metrics useful for analysis like their med, average, and min/max
-- [ ] List of img_id, and ins_id of highest errors
+- [x] Add tables of metrics useful for analysis like their med, average, and min/max
+- [x] List of img_id, and ins_id of highest errors
 - [ ] TP/FP/FN Mask Visualization
 - [ ] Add web-based interactive interface using maube Dash (Optional)
 
