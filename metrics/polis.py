@@ -154,8 +154,10 @@ class PolisEval():
         gts = self._gts[imgId]
         dts = self._dts[imgId]
 
-        if len(gts) == 0 or len(dts) == 0:
-            return 0
+        if len(gts) == 0:
+            return -1, -1
+        if len(dts) == 0:
+            return -1, 0
         gt_bboxs = [bounding_box(np.array(gt['segmentation'][0]
                                           ).reshape(-1, 2)
                                  ) for gt in gts if gt['id'] == insId]

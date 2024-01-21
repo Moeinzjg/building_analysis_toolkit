@@ -155,8 +155,16 @@ class CiouEval():
         gts = self._gts[img_id]
         dts = self._dts[img_id]
 
-        if len(gts) == 0 or len(dts) == 0:
-            return -1, -1, -1, -1, -1
+        if len(gts) == 0:
+            dt_polygons = [dt['segmentation'][0]
+                           for dt in dts]
+            N = len(dt_polygons[0]) // 2
+            return -1, -1, N, 0, -1
+        if len(dts) == 0:
+            gt_polygons = [gt['segmentation'][0]
+                           for gt in gts if gt['id'] == ins_id]
+            N_GT = len(gt_polygons[0]) // 2
+            return -1, -1, 0, N_GT, -1
 
         gt_bboxs = [bounding_box(np.array(gt['segmentation'][0]
                                           ).reshape(-1, 2)
