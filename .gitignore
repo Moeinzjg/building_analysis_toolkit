@@ -165,6 +165,7 @@ config.yaml
 # app outputs
 *.xls
 *.xlsx
+*.ipynb
 
 # folders
 outputs
