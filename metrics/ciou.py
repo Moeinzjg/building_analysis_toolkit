@@ -116,7 +116,7 @@ def compute_iou_ciou(input_json, gti_annotations):
         list_ciou.append(iou * ps)
         list_N.append(N)
         list_N_GT.append(N_GT)
-        list_N_ratio.append(N/N_GT)
+        list_N_ratio.append(N/(N_GT+ 1e-9))
         pss.append(ps)
         text = "iou: %2.4f, c-iou: %2.4f, ps:%2.4f"
         pbar.set_description(text % (np.mean(list_iou),
@@ -197,7 +197,7 @@ class CiouEval():
                                    img['height'], img['width'])
         m = cocomask.decode(rle)
         mask = m.reshape((img['height'], img['width']))
-        N = len(dt_polygons[0]) // 2
+        N = len(dt_polygons[matched_idx]) // 2
         mask = mask != 0
 
         # Calculate IoU, C-IoU, and N Ratio
