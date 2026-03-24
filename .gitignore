@@ -169,3 +169,5 @@ config.yaml
 
 # folders
 outputs
+archive
+results
