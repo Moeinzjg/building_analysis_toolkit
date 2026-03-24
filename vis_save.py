@@ -1,3 +1,4 @@
+from tqdm import tqdm
 import json
 import argparse
 import os.path as osp
@@ -83,7 +84,7 @@ def visualize(ANN_FILE: str, PRED_FILE: str, IMAGE_DIR: str,
             import pdb; pdb.set_trace()
         dt_polys[dt['image_id']].update(dt_poly)
 
-    for img_id in img_ids:
+    for img_id in tqdm(img_ids):
         img_info = gt_coco.loadImgs(img_id)[0]
         img_path = osp.join(IMAGE_DIR, img_info['file_name'])
         img = plt.imread(img_path)
