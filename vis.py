@@ -90,7 +90,10 @@ def visualize(ANN_FILE: str, PRED_FILE: str, IMAGE_DIR: str,
             # TODO: as instance ids are unique, then only instance id
             #  must be enough; however, currently we ask for image id too.
 
-            ins = gt_polys[img_id][INS_ID]
+            try:
+                ins = gt_polys[img_id][INS_ID]
+            except KeyError:
+                print (f'Instance {INS_ID} not found in image {img_id}. The keys are: {list(gt_polys[img_id].keys())}')
             dt_instances = [el for el in dt_polys[img_id].values()]
 
             gt_box = [bounding_box(ins)]
