@@ -26,6 +26,20 @@ from collections import defaultdict
 from functools import partial
 from descartes import PolygonPatch
 from matplotlib.collections import PatchCollection
+from pycocotools import mask as maskUtils
+
+
+def bounding_box(points):
+    bot_left_x, bot_left_y = float('inf'), float('inf')
+    top_right_x, top_right_y = float('-inf'), float('-inf')
+    for x, y in points:
+        bot_left_x = min(bot_left_x, x)
+        bot_left_y = min(bot_left_y, y)
+        top_right_x = max(top_right_x, x)
+        top_right_y = max(top_right_y, y)
+
+    return [bot_left_x, bot_left_y,
+            top_right_x - bot_left_x, top_right_y - bot_left_y]
 
 
 class ContourEval:
@@ -42,37 +56,26 @@ class ContourEval:
 
     def evaluate_ins(self, img_id, ins_id, pool=None):
         gts = self.coco_gt.loadAnns(self.coco_gt.getAnnIds(imgIds=img_id))
-        dts = self.coco_dt.loadAnns(self.coco_dt.getAnnIds(imgIds=img_id))
+        gt_matches = [gt for gt in gts if gt['image_id'] == img_id and gt['id'] == ins_id]
+        if not gt_matches:
+            return -1
 
-        _gts = defaultdict(list)  # gt for evaluation
-        _dts = defaultdict(list)  # dt for evaluation
-        for gt in gts:
-            if gt['image_id'] == img_id and gt['id'] == ins_id:
-                _gts[gt['image_id'], gt['category_id']].append(gt)
-        for dt in dts:
-            _dts[dt['image_id'], dt['category_id']].append(dt)
-        evalImgs = defaultdict(list)  # per-image per-category evaluation results
+        gt_ann = gt_matches[0]
+        dts = self.coco_dt.loadAnns(
+            self.coco_dt.getAnnIds(imgIds=img_id, catIds=[gt_ann['category_id']])
+        )
+        if not dts:
+            return -1
 
-        # Compute metric
-        args_list = []
-        # i = 1000
-        for cat_id in self.cat_ids:
-            gts = _gts[img_id, cat_id]
-            dts = _dts[img_id, cat_id]
-            args_list.append((gts, dts))
-                # i -= 1
-            # if i <= 0:
-            #     break
+        gt_box = [bounding_box(np.array(gt_ann['segmentation'][0]).reshape(-1, 2))]
+        dt_boxes = [bounding_box(np.array(dt['segmentation'][0]).reshape(-1, 2))
+                    for dt in dts]
 
-        if pool is None:
-            measures_list = []
-            for args in args_list:
-                measures_list.append(compute_contour_metrics(args))
-        else:
-            measures_list = list(pool.imap(compute_contour_metrics, args_list))
-        measures_list = [measure for measures in measures_list for measure in measures]  # Flatten list
-        # half_tangent_cosine_similarities_list, edge_distances_list = zip(*measures_list)
-        # half_tangent_cosine_similarities_list = [item for item in half_tangent_cosine_similarities_list if item is not None]
+        iscrowd = [0] * len(gt_box)
+        ious = maskUtils.iou(dt_boxes, gt_box, iscrowd)
+        matched_idx = np.argmax(ious[:, 0])
+
+        measures_list = compute_contour_metrics(([gt_ann], [dts[matched_idx]]))
         measures_list = [value for value in measures_list if value is not None]
         max_angle_diffs = np.array(measures_list)
         max_angle_diffs = max_angle_diffs * 180 / np.pi  # Convert to degrees

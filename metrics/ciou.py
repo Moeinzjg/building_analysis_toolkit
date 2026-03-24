@@ -18,6 +18,8 @@ from pycocotools.coco import COCO
 from collections import defaultdict
 from pycocotools import mask as maskUtils
 
+from metrics.coco_utils import load_res_or_empty
+
 
 def bounding_box(points):
     """returns a list containing the bottom left and the top right
@@ -52,16 +54,39 @@ def calc_IoU(a, b):
         return iou
 
 
+def _count_vertices(segmentation):
+    return sum(len(coords) // 2 for coords in segmentation)
+
+
+def _decode_mask(segmentation, height, width):
+    rle = cocomask.frPyObjects(segmentation, height, width)
+    mask = cocomask.decode(rle)
+    if mask.ndim == 3:
+        mask = np.any(mask, axis=2)
+    return mask.astype(bool)
+
+
+def anns_to_mask_and_vertices(annotations, height, width):
+    mask = np.zeros((height, width), dtype=bool)
+    num_vertices = 0
+
+    for annotation in annotations:
+        mask |= _decode_mask(annotation['segmentation'], height, width)
+        num_vertices += _count_vertices(annotation['segmentation'])
+
+    return mask, num_vertices
+
+
 def compute_iou_ciou(input_json, gti_annotations):
     # Ground truth annotations
     coco_gti = COCO(gti_annotations)
 
     # Predictions annotations
-    submission_file = json.loads(open(input_json).read())
-    coco = COCO(gti_annotations)
-    coco = coco.loadRes(submission_file)
+    coco, submission_file = load_res_or_empty(coco_gti, input_json)
 
-    image_ids = coco.getImgIds(catIds=coco.getCatIds())
+    # Follow HiSup's image-level logic: evaluate over the GT dataset image ids,
+    # so GT-only images still contribute as misses.
+    image_ids = coco_gti.getImgIds(catIds=coco_gti.getCatIds())
     pbar = tqdm(image_ids)
 
     list_iou = []
@@ -72,43 +97,19 @@ def compute_iou_ciou(input_json, gti_annotations):
     pss = []
     for image_id in pbar:
 
-        img = coco.loadImgs(image_id)[0]
+        img = coco_gti.loadImgs(image_id)[0]
 
-        annotation_ids = coco.getAnnIds(imgIds=img['id'])
-        annotations = coco.loadAnns(annotation_ids)
-        N = 0
-        for _idx, annotation in enumerate(annotations):
-            try:
-                rle = cocomask.frPyObjects(annotation['segmentation'],
-                                           img['height'], img['width'])
-            except Exception:
-                import pdb
-                pdb.set_trace()
-            m = cocomask.decode(rle)
-            if _idx == 0:
-                mask = m.reshape((img['height'], img['width']))
-                N = len(annotation['segmentation'][0]) // 2
-            else:
-                mask = mask + m.reshape((img['height'], img['width']))
-                N = N + len(annotation['segmentation'][0]) // 2
+        pred_ann_ids = coco.getAnnIds(imgIds=img['id'])
+        pred_annotations = coco.loadAnns(pred_ann_ids)
+        mask, N = anns_to_mask_and_vertices(pred_annotations,
+                                            img['height'],
+                                            img['width'])
 
-        mask = mask != 0
-
-        annotation_ids = coco_gti.getAnnIds(imgIds=img['id'])
-        annotations = coco_gti.loadAnns(annotation_ids)
-        N_GT = 0
-        for _idx, annotation in enumerate(annotations):
-            rle = cocomask.frPyObjects(annotation['segmentation'],
-                                       img['height'], img['width'])
-            m = cocomask.decode(rle)
-            if _idx == 0:
-                mask_gti = m.reshape((img['height'], img['width']))
-                N_GT = len(annotation['segmentation'][0]) // 2
-            else:
-                mask_gti = mask_gti + m.reshape((img['height'], img['width']))
-                N_GT = N_GT + len(annotation['segmentation'][0]) // 2
-
-        mask_gti = mask_gti != 0
+        gt_ann_ids = coco_gti.getAnnIds(imgIds=img['id'])
+        gt_annotations = coco_gti.loadAnns(gt_ann_ids)
+        mask_gti, N_GT = anns_to_mask_and_vertices(gt_annotations,
+                                                   img['height'],
+                                                   img['width'])
 
         ps = 1 - np.abs(N - N_GT) / (N + N_GT + 1e-9)
         iou = calc_IoU(mask, mask_gti)
@@ -154,27 +155,24 @@ class CiouEval():
     def eval_inst(self, img_id, ins_id):  # (input_json, gti_annotations):
         gts = self._gts[img_id]
         dts = self._dts[img_id]
+        gt_matches = [gt for gt in gts if gt['id'] == ins_id]
 
-        if len(gts) == 0:
+        if len(gt_matches) == 0:
             dt_polygons = [dt['segmentation'][0]
                            for dt in dts]
-            N = len(dt_polygons[0]) // 2
+            N = len(dt_polygons[0]) // 2 if dt_polygons else 0
             return -1, -1, N, 0, -1
         if len(dts) == 0:
-            gt_polygons = [gt['segmentation'][0]
-                           for gt in gts if gt['id'] == ins_id]
-            N_GT = len(gt_polygons[0]) // 2
+            _, N_GT = anns_to_mask_and_vertices(gt_matches,
+                                                self.cocoGt.loadImgs(img_id)[0]['height'],
+                                                self.cocoGt.loadImgs(img_id)[0]['width'])
             return -1, -1, 0, N_GT, -1
 
         gt_bboxs = [bounding_box(np.array(gt['segmentation'][0]
                                           ).reshape(-1, 2)
-                                 ) for gt in gts if gt['id'] == ins_id]
+                                 ) for gt in gt_matches]
         dt_bboxs = [bounding_box(np.array(dt['segmentation'][0]
                                           ).reshape(-1, 2)) for dt in dts]
-        gt_polygons = [gt['segmentation'][0]
-                       for gt in gts if gt['id'] == ins_id]
-        dt_polygons = [dt['segmentation'][0]
-                       for dt in dts]
 
         # IoU match
         iscrowd = [0] * len(gt_bboxs)
@@ -184,21 +182,12 @@ class CiouEval():
         # Calculate C-IoU
         img = self.cocoGt.loadImgs(img_id)[0]
 
-        # making gt mask
-        rle = cocomask.frPyObjects(gt_polygons,
-                                   img['height'], img['width'])
-        gt_m = cocomask.decode(rle)
-        gt_mask = gt_m.reshape((img['height'], img['width']))
-        N_GT = len(gt_polygons[0]) // 2
-        gt_mask = gt_mask != 0
-
-        # making pred mask
-        rle = cocomask.frPyObjects([dt_polygons[matched_idx]],
-                                   img['height'], img['width'])
-        m = cocomask.decode(rle)
-        mask = m.reshape((img['height'], img['width']))
-        N = len(dt_polygons[matched_idx]) // 2
-        mask = mask != 0
+        gt_mask, N_GT = anns_to_mask_and_vertices(gt_matches,
+                                                  img['height'],
+                                                  img['width'])
+        mask, N = anns_to_mask_and_vertices([dts[matched_idx]],
+                                            img['height'],
+                                            img['width'])
 
         # Calculate IoU, C-IoU, and N Ratio
         ps = 1 - np.abs(N - N_GT) / (N + N_GT + 1e-9)

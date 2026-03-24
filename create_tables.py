@@ -7,10 +7,12 @@ import pandas as pd
 import numpy as np
 from shapely.geometry import Polygon
 from pycocotools.coco import COCO
+from tqdm import tqdm
 
 from metrics.polis import PolisEval
 from metrics.maxtan import ContourEval
 from metrics.ciou import compute_iou_ciou, CiouEval
+from metrics.coco_utils import load_res_or_empty
 
 
 def det_size(area: float) -> str:
@@ -91,7 +93,7 @@ def load_json(file_path):
 
 def ciou_eval(ann_file, pred_file):
     gt_coco = COCO(ann_file)
-    pred_coco = gt_coco.loadRes(pred_file)
+    pred_coco, _ = load_res_or_empty(gt_coco, pred_file)
     ciou_evaluator = CiouEval(gt_coco, pred_coco)
     return ciou_evaluator
 
@@ -99,7 +101,7 @@ def ciou_eval(ann_file, pred_file):
 def polis_eval(ann_file, pred_file):
     print('\nCalculating POLIS ...\n')
     gt_coco = COCO(ann_file)
-    pred_coco = gt_coco.loadRes(pred_file)
+    pred_coco, _ = load_res_or_empty(gt_coco, pred_file)
     polis_evaluator = PolisEval(gt_coco, pred_coco)
     polis_evaluator.evaluate()
     return polis_evaluator
@@ -108,7 +110,7 @@ def polis_eval(ann_file, pred_file):
 def max_angle_error_eval(ann_file, pred_file):
     print('\nCalculating Max Angle Error ...\n')
     gt_coco = COCO(ann_file)
-    pred_coco = gt_coco.loadRes(pred_file)
+    pred_coco, _ = load_res_or_empty(gt_coco, pred_file)
     mta_evaluator = ContourEval(gt_coco, pred_coco)
     return mta_evaluator
 
@@ -120,19 +122,25 @@ def create_instance_table(config, annotations: dict,
     ciou_evaluator = evaluators[2]
 
     # Get the dataset info
-    name = cfg['name']
-    height = annotations['images'][0]['height']
-    width = annotations['images'][0]['width']
+    name = config['name']
+    image_info = {img['id']: img for img in annotations['images']}
 
     # Process each annotation
     row_list = []
-    for ann in annotations['annotations']:
+    for ann in tqdm(annotations['annotations'],
+                    desc='Computing instance metrics',
+                    unit='instance'):
 
         instance_id = ann['id']
         img_id = ann['image_id']
+        img_meta = image_info[img_id]
+        height = img_meta['height']
+        width = img_meta['width']
         seg = ann['segmentation']
-        polygon = [[min(max(point, 0), min(height, width)) for
-                    point in seg[0]]]
+        polygon = [[
+            min(max(point, 0), width) if idx % 2 == 0 else min(max(point, 0), height)
+            for idx, point in enumerate(seg[0])
+        ]]
 
         area = Polygon(np.array(polygon).reshape(-1, 2)).area
         if area <= 0:
