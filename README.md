@@ -42,6 +42,7 @@ Required fields in `config.yaml`:
 ```yaml
 name: "your_run_name"
 prediction_file: "/absolute/path/to/predictions.json"
+prediction_file2: "/absolute/path/to/second_predictions.json"
 annotation_file: "/absolute/path/to/instances_test.json"
 image_dir: "/absolute/path/to/image_directory"
 output_dir: "."
@@ -51,6 +52,7 @@ Field meanings:
 
 - `name`: prefix used for exported files
 - `prediction_file`: model predictions in COCO result format
+- `prediction_file2`: optional second prediction file for side-by-side visualization / comparison plots
 - `annotation_file`: COCO ground-truth annotations
 - `image_dir`: directory containing the corresponding images
 - `output_dir`: where generated Excel files are written
@@ -108,19 +110,33 @@ python vis.py --instance --img_id <img_id> --ins_id <ins_id>
 
 The required `img_id` and `ins_id` values are available in the exported instance table.
 
+If `prediction_file2` is set in `config.yaml`, `vis.py` will automatically show:
+- `GT`
+- `prediction_file`
+- `prediction_file2`
+
+You can also override either prediction path from the CLI with `--pred_file1` and `--pred_file2`.
+
 If you want saved plots instead of interactive display:
 
 ```bash
-python vis_save.py --img_id <img_id>
-python vis_save.py --instance --img_id <img_id> --ins_id <ins_id>
+python vis.py --img_id <img_id> --save_dir ./results
+python vis.py --instance --img_id <img_id> --ins_id <ins_id> --save_dir ./results
 ```
+
+Two-result comparison example:
+
+```bash
+python vis.py --img_id <img_id> --pred_file2 /path/to/second_results.json
+```
+
+`vis.py --save_dir ...` is the supported way to save plots.
 
 ## Main Files
 
 - [create_tables.py](create_tables.py): main entry point for metric extraction and Excel export
 - [report_metrics_stats.py](report_metrics_stats.py): summary statistics, grouped analysis, and top-k failure groups
-- [vis.py](vis.py): interactive visualization
-- [vis_save.py](vis_save.py): save visualizations to disk
+- [vis.py](vis.py): interactive or saved visualization
 - [compare_two_results.py](compare_two_results.py): compare two exported result files
 - [metrics/polis.py](metrics/polis.py): POLIS metric
 - [metrics/maxtan.py](metrics/maxtan.py): max tangent angle / contour metric

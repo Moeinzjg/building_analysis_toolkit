@@ -1,5 +1,6 @@
 name: '< name >'
 prediction_file: '<path to prediction results json file in coco format>'
+prediction_file2: '<optional path to a second prediction results json file in coco format>'
 annotation_file: '<path to annotation json file in coco format>'
 image_dir: '<path to image directory>'
 
