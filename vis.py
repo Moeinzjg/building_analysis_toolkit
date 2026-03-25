@@ -33,9 +33,11 @@ colormap = (
 num_color = len(colormap)
 
 
-def resolve_label(path, explicit_label, fallback):
-    if explicit_label:
-        return explicit_label
+def resolve_label(path, cli_label, config_label, fallback):
+    if cli_label:
+        return cli_label
+    if config_label:
+        return config_label
     if path:
         return osp.splitext(osp.basename(path))[0]
     return fallback
@@ -227,8 +229,8 @@ def parse_args():
                         help='Display label for the first prediction file')
     parser.add_argument('--label2', type=str, default=None,
                         help='Display label for the second prediction file')
-    parser.add_argument('--save_dir', type=str, default=None,
-                        help='If provided, save plots to this directory instead of showing them')
+    parser.add_argument('--save', action='store_true', default=False,
+                        help='Save plots to output_dir instead of showing them')
     return parser.parse_args()
 
 
@@ -243,9 +245,15 @@ def main(default_save_dir=None):
     args = parse_args()
     pred_file1 = args.pred_file1 or cfg['prediction_file']
     pred_file2 = args.pred_file2 or cfg.get('prediction_file2')
-    label1 = resolve_label(pred_file1, args.label1, 'Pred 1')
-    label2 = resolve_label(pred_file2, args.label2, 'Pred 2')
-    save_dir = args.save_dir if args.save_dir is not None else default_save_dir
+    label1 = resolve_label(pred_file1,
+                           args.label1,
+                           cfg.get('prediction_label'),
+                           'Pred 1')
+    label2 = resolve_label(pred_file2,
+                           args.label2,
+                           cfg.get('prediction_label2'),
+                           'Pred 2')
+    save_dir = cfg['output_dir'] if args.save else default_save_dir
 
     visualize(cfg['annotation_file'], pred_file1, pred_file2,
               cfg['image_dir'], args.instance, args.img_id,

@@ -42,7 +42,9 @@ Required fields in `config.yaml`:
 ```yaml
 name: "your_run_name"
 prediction_file: "/absolute/path/to/predictions.json"
+prediction_label: "Model A"
 prediction_file2: "/absolute/path/to/second_predictions.json"
+prediction_label2: "Model B"
 annotation_file: "/absolute/path/to/instances_test.json"
 image_dir: "/absolute/path/to/image_directory"
 output_dir: "."
@@ -52,7 +54,9 @@ Field meanings:
 
 - `name`: prefix used for exported files
 - `prediction_file`: model predictions in COCO result format
+- `prediction_label`: optional display title for the first prediction in visualization panels
 - `prediction_file2`: optional second prediction file for side-by-side visualization / comparison plots
+- `prediction_label2`: optional display title for the second prediction in visualization panels
 - `annotation_file`: COCO ground-truth annotations
 - `image_dir`: directory containing the corresponding images
 - `output_dir`: where generated Excel files are written
@@ -115,13 +119,13 @@ If `prediction_file2` is set in `config.yaml`, `vis.py` will automatically show:
 - `prediction_file`
 - `prediction_file2`
 
-You can also override either prediction path from the CLI with `--pred_file1` and `--pred_file2`.
+You can also override either prediction path from the CLI with `--pred_file1` and `--pred_file2`, and override subplot titles with `--label1` and `--label2`.
 
 If you want saved plots instead of interactive display:
 
 ```bash
-python vis.py --img_id <img_id> --save_dir ./results
-python vis.py --instance --img_id <img_id> --ins_id <ins_id> --save_dir ./results
+python vis.py --img_id <img_id> --save
+python vis.py --instance --img_id <img_id> --ins_id <ins_id> --save
 ```
 
 Two-result comparison example:
@@ -130,7 +134,7 @@ Two-result comparison example:
 python vis.py --img_id <img_id> --pred_file2 /path/to/second_results.json
 ```
 
-`vis.py --save_dir ...` is the supported way to save plots.
+`--save` writes plots into `output_dir` from `config.yaml`.
 
 ## Main Files
 
