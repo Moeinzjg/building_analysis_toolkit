@@ -68,6 +68,7 @@ def load_prediction_polygons(gt_coco, pred_file, img_ids):
 def draw_polygons(ax, image, polys, title, color_id=None):
     ax.axis('off')
     ax.imshow(image)
+    img_height, img_width = image.shape[:2]
     if not isinstance(polys, list):
         polys = [polys]
     for i, polygon in enumerate(polys):
@@ -81,6 +82,11 @@ def draw_polygons(ax, image, polys, title, color_id=None):
         ax.add_patch(Patches.Polygon(polygon, fill=False,
                                      ec=color, linewidth=1.5))
         ax.fill(polygon[:, 0], polygon[:, 1], color=color, alpha=0.3)
+    # Keep every panel locked to the image extent so out-of-bounds prediction
+    # vertices do not trigger autoscaling and make one subplot appear smaller.
+    ax.set_xlim(0, img_width)
+    ax.set_ylim(img_height, 0)
+    ax.set_aspect('equal')
     ax.set_title(title)
 
 
