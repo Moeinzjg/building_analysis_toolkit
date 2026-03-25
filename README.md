@@ -1,48 +1,167 @@
-# building_analysis_toolkit
-A toolkit for both quantitative and qualitative analysis of building instance segmentation results in <br>
-MS COCO json format.
+# Building Analysis Toolkit
 
-## Requirements
-To install all the packages needed, you can simply use conda:
-```
-conda env create -f env.yml\
+A toolkit for quantitative and qualitative analysis of building polygon / instance segmentation results in MS COCO JSON format.
+
+## What It Does
+
+Given:
+
+- a COCO ground-truth annotation file
+- a COCO prediction file
+- the corresponding image directory
+
+the toolkit can:
+
+- compute per-instance metrics
+- compute image-level IoU / C-IoU summaries
+- export Excel tables for analysis
+- generate grouped metric reports and top-k failure groups
+- visualize predictions and annotations per image or per instance
+
+## Environment Setup
+
+Create and use the provided conda environment:
+
+```bash
+conda env create -f env.yml
 conda activate atk
 ```
 
-## Usage
-You need your annotation and prediction results files to be in MS COCO format.<br>
-Then, copy "sample_config.yaml", rename it to "config.yaml", and enter the file names and configs of yours.<br>
-After that, you can export the tables including instance-wise characteristics and metrics by:
+All commands below assume you are running inside `atk`.
+
+## Config
+
+Copy the sample config and edit it:
+
+```bash
+cp sample_config.yaml config.yaml
 ```
+
+Required fields in `config.yaml`:
+
+```yaml
+name: "your_run_name"
+prediction_file: "/absolute/path/to/predictions.json"
+annotation_file: "/absolute/path/to/instances_test.json"
+image_dir: "/absolute/path/to/image_directory"
+output_dir: "."
+```
+
+Field meanings:
+
+- `name`: prefix used for exported files
+- `prediction_file`: model predictions in COCO result format
+- `annotation_file`: COCO ground-truth annotations
+- `image_dir`: directory containing the corresponding images
+- `output_dir`: where generated Excel files are written
+
+## Typical Workflow
+
+### 1. Generate the base metric tables
+
+```bash
 python create_tables.py
 ```
-To visualize the results and annotation you have two options:
 
-1) image-based
+This creates:
+
+- `<name>_instance_based.xlsx`
+- `<name>_image_based.xlsx`
+
+`create_tables.py` now shows a progress bar while per-instance metrics are being computed.
+
+### 2. Generate analysis-oriented metric reports
+
+```bash
+python report_metrics_stats.py
 ```
+
+This creates:
+
+- `<name>_metric_stats.xlsx`
+- `<name>_outliers.xlsx`
+
+`<name>_metric_stats.xlsx` contains these sheets:
+
+- `metric_stats`: overall summary per metric
+- `grouped_stats`: grouped analysis by `size`, `touch_border`, `#vertices`, `area_bin`, `orientation_bin`, `n_ratio_bin`, and `n_diff_group`
+- `high_signal_groups`: grouped rows filtered to groups with enough samples and sorted by worst-performing groups
+- `top_k_groups`: the worst-ranked groups per metric for quick triage
+
+`<name>_outliers.xlsx` contains:
+
+- `outliers`: long-form list of detected outlier instances with `metric`, `method`, `image_id`, `instance_id`, and metric `value`
+
+### 3. Visualize results
+
+Image-level visualization:
+
+```bash
 python vis.py --img_id <img_id>
 ```
-img_id is available in the output excel files.
 
-2) instance-based
-```
+Instance-level visualization:
+
+```bash
 python vis.py --instance --img_id <img_id> --ins_id <ins_id>
 ```
-img_id and ins_id are available in the output excel files.
 
-To generate the more detaield statistics about your metrics, plus the instance id for each metrics' outliers"
+The required `img_id` and `ins_id` values are available in the exported instance table.
+
+If you want saved plots instead of interactive display:
+
+```bash
+python vis_save.py --img_id <img_id>
+python vis_save.py --instance --img_id <img_id> --ins_id <ins_id>
 ```
-python report_metrics_stats.py
-``` 
+
+## Main Files
+
+- [create_tables.py](create_tables.py): main entry point for metric extraction and Excel export
+- [report_metrics_stats.py](report_metrics_stats.py): summary statistics, grouped analysis, and top-k failure groups
+- [vis.py](vis.py): interactive visualization
+- [vis_save.py](vis_save.py): save visualizations to disk
+- [compare_two_results.py](compare_two_results.py): compare two exported result files
+- [metrics/polis.py](metrics/polis.py): POLIS metric
+- [metrics/maxtan.py](metrics/maxtan.py): max tangent angle / contour metric
+- [metrics/ciou.py](metrics/ciou.py): IoU and C-IoU logic
+
+## Exported Instance Table
+
+The per-instance table includes columns such as:
+
+- `image_id`
+- `instance_id`
+- `#vertices`
+- `area`
+- `size`
+- `orientation`
+- `touch_border`
+- `polis`
+- `box_iou`
+- `mta`
+- `iou`
+- `ciou`
+- `#vertices_pred`
+- `N_diff`
+- `N_ratio`
+
+These are the main inputs used by `report_metrics_stats.py` for grouped analysis.
+
+## Notes
+
+- Predictions and annotations should be polygon-based COCO segmentation data.
+- Some metrics use `-1` as an invalid / unmatched sentinel in the instance table; the reporting script filters these out before computing summary statistics.
+- Empty prediction files are handled in the metric pipeline.
 
 ## ToDo
-- [x] Instance-based Visualization
+
+- [x] Instance-based visualization
 - [x] Image-based table
 - [x] Add the option to save the plots
 - [x] Add plots and analysis of results/annotations
 - [x] Add interactive graph interface
-- [x] Add tables of metrics useful for analysis like their med, average, and min/max
-- [x] List of img_id, and ins_id of highest errors
-- [ ] TP/FP/FN Mask Visualization
-- [ ] Add web-based interactive interface using maube Dash (Optional)
-
+- [x] Add tables of metrics useful for analysis like mean / median / min / max
+- [x] List `img_id` and `ins_id` for high-error cases
+- [ ] TP / FP / FN mask visualization
+- [ ] Optional web-based interactive interface

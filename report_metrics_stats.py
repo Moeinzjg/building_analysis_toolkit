@@ -13,6 +13,7 @@ METRIC_CONFIGS = [
     {"name": "mta", "thresholds": [40, 60], "larger_better": False},
 ]
 MIN_HIGH_SIGNAL_COUNT = 30
+TOP_K_GROUPS_PER_METRIC = 15
 
 AREA_BIN_EDGES = [0, 32 ** 2, 96 ** 2, 256 ** 2, 512 ** 2, np.inf]
 AREA_BIN_LABELS = [
@@ -242,6 +243,7 @@ def save_outputs(config: dict,
                  stats_df: pd.DataFrame,
                  grouped_stats_df: pd.DataFrame,
                  high_signal_df: pd.DataFrame,
+                 top_k_df: pd.DataFrame,
                  outliers_df: pd.DataFrame) -> None:
     stats_path = osp.join(config['output_dir'],
                           f"{config['name']}_metric_stats.xlsx")
@@ -252,6 +254,7 @@ def save_outputs(config: dict,
         stats_df.to_excel(writer, index=False, sheet_name='metric_stats')
         grouped_stats_df.to_excel(writer, index=False, sheet_name='grouped_stats')
         high_signal_df.to_excel(writer, index=False, sheet_name='high_signal_groups')
+        top_k_df.to_excel(writer, index=False, sheet_name='top_k_groups')
 
     outliers_df.to_excel(outliers_path, index=False, sheet_name='outliers')
 
@@ -287,6 +290,22 @@ def build_high_signal_groups(grouped_stats_df: pd.DataFrame) -> pd.DataFrame:
         ascending=[True, False, False],
     )
     return filtered
+
+
+def build_top_k_groups(high_signal_df: pd.DataFrame) -> pd.DataFrame:
+    if high_signal_df.empty:
+        return high_signal_df
+
+    top_k_rows = []
+    for metric_name, metric_df in high_signal_df.groupby('metric', sort=False):
+        top_metric_df = metric_df.head(TOP_K_GROUPS_PER_METRIC).copy()
+        top_metric_df.insert(1, 'rank', np.arange(1, len(top_metric_df) + 1))
+        top_k_rows.append(top_metric_df)
+
+    if not top_k_rows:
+        return pd.DataFrame()
+
+    return pd.concat(top_k_rows, ignore_index=True)
 
 
 if __name__ == '__main__':
@@ -348,6 +367,7 @@ if __name__ == '__main__':
     stats_df = pd.DataFrame(stats_rows)
     grouped_stats_df = pd.DataFrame(grouped_rows)
     high_signal_df = build_high_signal_groups(grouped_stats_df)
+    top_k_df = build_top_k_groups(high_signal_df)
     outliers_df = pd.DataFrame(outlier_rows)
     stats_df = reorder_columns(stats_df, ['metric'])
     if len(grouped_stats_df):
@@ -358,6 +378,10 @@ if __name__ == '__main__':
         high_signal_df = reorder_columns(high_signal_df,
                                          ['metric', 'group_by', 'group',
                                           'total_count', 'severity_score'])
+    if len(top_k_df):
+        top_k_df = reorder_columns(top_k_df,
+                                   ['metric', 'rank', 'group_by', 'group',
+                                    'total_count', 'severity_score'])
     if len(outliers_df):
         outliers_df = reorder_columns(outliers_df,
                                       ['metric', 'method', 'image_id',
@@ -368,9 +392,12 @@ if __name__ == '__main__':
         print(grouped_stats_df)
     if len(high_signal_df):
         print(high_signal_df)
+    if len(top_k_df):
+        print(top_k_df)
     if len(outliers_df):
         print(outliers_df)
     else:
         print('No outliers detected.')
 
-    save_outputs(cfg, stats_df, grouped_stats_df, high_signal_df, outliers_df)
+    save_outputs(cfg, stats_df, grouped_stats_df, high_signal_df, top_k_df,
+                 outliers_df)
