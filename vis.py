@@ -90,6 +90,14 @@ def draw_polygons(ax, image, polys, title, color_id=None):
     ax.set_title(title)
 
 
+def polygon_vertex_count(polygon):
+    if polygon is None or len(polygon) == 0:
+        return None
+    if len(polygon) > 1 and np.allclose(polygon[0], polygon[-1]):
+        return len(polygon) - 1
+    return len(polygon)
+
+
 def render_panels(panels, save_path=None):
     fig, axes = plt.subplots(1, len(panels), figsize=(6 * len(panels), 6))
     if len(panels) == 1:
@@ -97,6 +105,10 @@ def render_panels(panels, save_path=None):
     for ax, panel in zip(axes, panels):
         draw_polygons(ax, panel['image'], panel['polys'], panel['title'],
                       color_id=panel.get('color_id'))
+        footer = panel.get('footer')
+        if footer:
+            ax.text(0.5, -0.08, footer, transform=ax.transAxes,
+                    ha='center', va='top')
     fig.tight_layout()
     if save_path is not None:
         fig.savefig(save_path)
@@ -188,14 +200,22 @@ def visualize(ann_file, pred_file1, pred_file2, image_dir,
                 image, gt_instance.copy(), matched_preds, width, height
             )
 
-            panels = [{'image': cropped_image, 'polys': gt_crop, 'title': 'GT', 'color_id': 0}]
+            panels = [{
+                'image': cropped_image,
+                'polys': gt_crop,
+                'title': 'GT',
+                'color_id': 0,
+                'footer': f'Vertices: {polygon_vertex_count(gt_crop)}',
+            }]
             for (pred_label, _, color_id), pred_crop in zip(pred_sets, pred_crops):
                 title = pred_label if pred_crop is not None else f'{pred_label} (no match)'
+                vertex_count = polygon_vertex_count(pred_crop)
                 panels.append({
                     'image': cropped_image,
                     'polys': [] if pred_crop is None else pred_crop,
                     'title': title,
                     'color_id': color_id,
+                    'footer': 'Vertices: N/A' if vertex_count is None else f'Vertices: {vertex_count}',
                 })
             save_path = None if save_dir is None else osp.join(
                 save_dir, f'compare_instance_{current_img_id}_{ins_id}.png'
