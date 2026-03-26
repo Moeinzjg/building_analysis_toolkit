@@ -136,11 +136,37 @@ python vis.py --img_id <img_id> --pred_file2 /path/to/second_results.json
 
 `--save` writes plots into `output_dir` from `config.yaml`.
 
+### 4. Generate analysis plots from the exported instance workbook
+
+```bash
+python plot_analysis.py
+```
+
+This reads `<output_dir>/<name>_instance_based.xlsx` and saves a compact set of analysis plots for:
+- simplicity
+- regularity
+- fidelity
+
+Typical outputs include:
+- metric distribution overviews
+- `#vertices` vs `#vertices_pred`
+- `iou` vs `polis`
+- `mta` vs `ciou`
+- grouped boxplots by `size`
+- heatmaps over `area_bin x #vertices`
+
+To compare two exported workbooks:
+
+```bash
+python plot_analysis.py --file path/to/model_a_instance_based.xlsx --file2 path/to/model_b_instance_based.xlsx --label1 ModelA --label2 ModelB
+```
+
 ## Main Files
 
 - [create_tables.py](create_tables.py): main entry point for metric extraction and Excel export
 - [report_metrics_stats.py](report_metrics_stats.py): summary statistics, grouped analysis, and top-k failure groups
 - [vis.py](vis.py): interactive or saved visualization
+- [plot_analysis.py](plot_analysis.py): ready-made plots for polygon simplicity, regularity, and fidelity
 - [compare_two_results.py](compare_two_results.py): compare two exported result files
 - [metrics/polis.py](metrics/polis.py): POLIS metric
 - [metrics/maxtan.py](metrics/maxtan.py): max tangent angle / contour metric
