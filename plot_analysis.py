@@ -37,12 +37,14 @@ def sanitize_name(name):
                    for char in str(name))
 
 
-def resolve_label(file_path, cli_label, fallback):
+def resolve_label(file_path, cli_label, default_label):
     if cli_label:
         return cli_label
+    if default_label:
+        return default_label
     if file_path:
         return osp.splitext(osp.basename(file_path))[0]
-    return fallback
+    return 'results'
 
 
 def resolve_existing_workbook(preferred_path):
@@ -283,22 +285,27 @@ def main():
         raise
 
     args = parse_args()
-    default_file = osp.join(cfg['output_dir'], f"{cfg['name']}_instance_based.xlsx")
+    default_file = cfg.get('instance_results_file') or osp.join(
+        cfg['output_dir'], f"{cfg['name']}_instance_based.xlsx"
+    )
     file1 = args.file or resolve_existing_workbook(default_file)
     if not osp.exists(file1):
         raise FileNotFoundError(
             f'Could not find instance workbook: {file1}. '
             'Run create_tables.py first or pass --file explicitly.'
         )
-    label1 = resolve_label(file1, args.label1, cfg['name'])
+    label1 = resolve_label(file1, args.label1, cfg.get('prediction_label', cfg['name']))
 
     df1 = add_analysis_columns(load_results(file1))
 
-    if args.file2:
-        file2 = resolve_existing_workbook(args.file2)
+    config_file2 = cfg.get('instance_results_file2')
+    file2 = args.file2 or (resolve_existing_workbook(config_file2) if config_file2 else None)
+
+    if file2:
+        file2 = resolve_existing_workbook(file2)
         if not osp.exists(file2):
             raise FileNotFoundError(f'Could not find comparison workbook: {file2}')
-        label2 = resolve_label(file2, args.label2, 'comparison')
+        label2 = resolve_label(file2, args.label2, cfg.get('prediction_label2', 'comparison'))
         compare_root = args.output_dir or osp.join(
             cfg['output_dir'],
             f"compare_{sanitize_name(label1)}_vs_{sanitize_name(label2)}_plots",

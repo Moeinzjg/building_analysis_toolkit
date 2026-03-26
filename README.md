@@ -45,6 +45,8 @@ prediction_file: "/absolute/path/to/predictions.json"
 prediction_label: "Model A"
 prediction_file2: "/absolute/path/to/second_predictions.json"
 prediction_label2: "Model B"
+instance_results_file: "/absolute/path/to/model_a_instance_based.xlsx"
+instance_results_file2: "/absolute/path/to/model_b_instance_based.xlsx"
 annotation_file: "/absolute/path/to/instances_test.json"
 image_dir: "/absolute/path/to/image_directory"
 output_dir: "."
@@ -57,6 +59,8 @@ Field meanings:
 - `prediction_label`: optional display title for the first prediction in visualization panels
 - `prediction_file2`: optional second prediction file for side-by-side visualization / comparison plots
 - `prediction_label2`: optional display title for the second prediction in visualization panels
+- `instance_results_file`: optional output path for the first instance workbook; also used as the default input to `plot_analysis.py`
+- `instance_results_file2`: optional output path for the second instance workbook; also used as the default comparison input to `plot_analysis.py`
 - `annotation_file`: COCO ground-truth annotations
 - `image_dir`: directory containing the corresponding images
 - `output_dir`: where generated Excel files are written
@@ -69,10 +73,16 @@ Field meanings:
 python create_tables.py
 ```
 
-This creates:
+This creates one pair of workbooks per configured prediction file.
 
+If only `prediction_file` is set, it creates:
 - `<name>_instance_based.xlsx`
 - `<name>_image_based.xlsx`
+
+If both `prediction_file` and `prediction_file2` are set, `create_tables.py` generates outputs for both runs.
+By default those filenames are derived from `prediction_label` and `prediction_label2`, unless you set:
+- `instance_results_file`
+- `instance_results_file2`
 
 `create_tables.py` now shows a progress bar while per-instance metrics are being computed.
 
@@ -142,7 +152,7 @@ python vis.py --img_id <img_id> --pred_file2 /path/to/second_results.json
 python plot_analysis.py
 ```
 
-This reads `<output_dir>/<name>_instance_based.xlsx` and saves a compact set of analysis plots for:
+This reads the default instance workbook from config and saves a compact set of analysis plots for:
 - simplicity
 - regularity
 - fidelity
@@ -154,6 +164,8 @@ Typical outputs include:
 - `mta` vs `ciou`
 - grouped boxplots by `size`
 - heatmaps over `area_bin x #vertices`
+
+If `instance_results_file` and `instance_results_file2` are set in `config.yaml`, `plot_analysis.py` will automatically run in comparison mode using `prediction_label` and `prediction_label2` as plot labels.
 
 To compare two exported workbooks:
 

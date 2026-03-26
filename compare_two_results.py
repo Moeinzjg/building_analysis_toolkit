@@ -2,6 +2,7 @@ import argparse
 from os import path as osp
 
 import pandas as pd
+import yaml
 
 
 DEFAULT_EXCLUDE_COLUMNS = {
@@ -20,11 +21,13 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description='Compare two exported result workbooks and summarize metric differences.'
     )
-    parser.add_argument('file1', type=str, help='Path to the first result file.')
-    parser.add_argument('file2', type=str, help='Path to the second result file.')
-    parser.add_argument('--label1', type=str, default='file1',
+    parser.add_argument('file1', nargs='?', type=str, default=None,
+                        help='Path to the first result file.')
+    parser.add_argument('file2', nargs='?', type=str, default=None,
+                        help='Path to the second result file.')
+    parser.add_argument('--label1', type=str, default=None,
                         help='Label for the first file in the output tables.')
-    parser.add_argument('--label2', type=str, default='file2',
+    parser.add_argument('--label2', type=str, default=None,
                         help='Label for the second file in the output tables.')
     parser.add_argument('--output', type=str, default=None,
                         help='Optional output xlsx path for detailed comparison tables.')
@@ -125,11 +128,53 @@ def default_output_path(file1, file2):
     return f'compare_{name1}_vs_{name2}.xlsx'
 
 
+def resolve_existing_workbook(preferred_path):
+    if preferred_path is None:
+        return None
+    if osp.exists(preferred_path):
+        return preferred_path
+
+    basename = osp.basename(preferred_path)
+    if osp.exists(basename):
+        print(
+            f'Configured workbook not found at {preferred_path}. '
+            f'Using {basename} instead.'
+        )
+        return basename
+    return preferred_path
+
+
+def resolve_inputs(args):
+    try:
+        with open('config.yaml') as f:
+            cfg = yaml.load(f, Loader=yaml.FullLoader)
+    except FileNotFoundError:
+        cfg = {}
+
+    file1 = args.file1 or resolve_existing_workbook(cfg.get('instance_results_file'))
+    file2 = args.file2 or resolve_existing_workbook(cfg.get('instance_results_file2'))
+
+    if file1 is None or file2 is None:
+        raise FileNotFoundError(
+            'Need two result workbooks to compare. Pass file1/file2 explicitly '
+            'or set instance_results_file and instance_results_file2 in config.yaml.'
+        )
+    if not osp.exists(file1):
+        raise FileNotFoundError(f'Could not find first workbook: {file1}')
+    if not osp.exists(file2):
+        raise FileNotFoundError(f'Could not find second workbook: {file2}')
+
+    label1 = args.label1 or cfg.get('prediction_label') or 'file1'
+    label2 = args.label2 or cfg.get('prediction_label2') or 'file2'
+    return file1, file2, label1, label2
+
+
 if __name__ == "__main__":
     args = parse_args()
+    file1, file2, label1, label2 = resolve_inputs(args)
 
-    df1 = load_results(args.file1)
-    df2 = load_results(args.file2)
+    df1 = load_results(file1)
+    df2 = load_results(file2)
     key_columns = infer_key_columns(df1, df2)
     metric_columns = infer_metric_columns(df1, df2, key_columns)
 
@@ -138,17 +183,17 @@ if __name__ == "__main__":
 
     comparison_df = build_comparison_table(df1, df2, key_columns,
                                            metric_columns,
-                                           args.label1, args.label2)
+                                           label1, label2)
     summary_df = build_summary_table(comparison_df, metric_columns,
-                                     args.label1, args.label2)
+                                     label1, label2)
 
     print(f'Using key columns: {key_columns}')
     print(f'Comparing metric columns: {metric_columns}')
-    print_alignment_summary(comparison_df, args.label1, args.label2)
+    print_alignment_summary(comparison_df, label1, label2)
     print('\nMetric summary:')
     print(summary_df.to_string(index=False))
 
-    output_path = args.output or default_output_path(args.file1, args.file2)
+    output_path = args.output or default_output_path(file1, file2)
     with pd.ExcelWriter(output_path) as writer:
         summary_df.to_excel(writer, index=False, sheet_name='summary')
         comparison_df.to_excel(writer, index=False, sheet_name='comparison')

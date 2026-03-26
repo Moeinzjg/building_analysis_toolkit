@@ -1,3 +1,4 @@
+import os
 from os import path as osp
 import json
 import math
@@ -13,6 +14,11 @@ from metrics.polis import PolisEval
 from metrics.maxtan import ContourEval
 from metrics.ciou import compute_iou_ciou, CiouEval
 from metrics.coco_utils import load_res_or_empty
+
+
+def sanitize_name(name: str) -> str:
+    return ''.join(char if char.isalnum() or char in {'-', '_'} else '_'
+                   for char in str(name))
 
 
 def det_size(area: float) -> str:
@@ -65,7 +71,7 @@ def touch_border(poly: list, width: int, height: int) -> bool:
 
 
 def create_image_table(configs, gti_annotations: dict,
-                       input_json: dict):
+                       input_json: dict, output_path: str):
     img_ids, iou, ciou, Ns, N_GTs, N_ratio = compute_iou_ciou(
         input_json, gti_annotations)
 
@@ -81,9 +87,7 @@ def create_image_table(configs, gti_annotations: dict,
     df = pd.DataFrame(row_list)
     print(df)  # Disply the DataFrame
     # Write to xlsx
-    df.to_excel(osp.join(
-        configs['output_dir'], f"./{configs['name']}_image_based.xlsx"),
-        sheet_name=name)
+    df.to_excel(output_path, sheet_name=name)
 
 
 def load_json(file_path):
@@ -116,7 +120,7 @@ def max_angle_error_eval(ann_file, pred_file):
 
 
 def create_instance_table(config, annotations: dict,
-                          evaluators: tuple) -> None:
+                          evaluators: tuple, output_path: str) -> None:
     polis_evaluator = evaluators[0]
     mta_evaluator = evaluators[1]
     ciou_evaluator = evaluators[2]
@@ -176,9 +180,55 @@ def create_instance_table(config, annotations: dict,
     df = pd.DataFrame(row_list)
     print(df)  # Disply the DataFrame
     # Write to xlsx
-    df.to_excel(osp.join(
-        config['output_dir'], f"./{config['name']}_instance_based.xlsx"),
-        sheet_name=name)
+    df.to_excel(output_path, sheet_name=name)
+
+
+def derive_image_output_path(instance_output_path: str) -> str:
+    if instance_output_path.endswith('_instance_based.xlsx'):
+        return instance_output_path.replace('_instance_based.xlsx',
+                                            '_image_based.xlsx')
+    stem, ext = osp.splitext(instance_output_path)
+    return f'{stem}_image_based{ext}'
+
+
+def build_run_specs(cfg: dict) -> list[dict]:
+    run_specs = []
+    predictions = [
+        {
+            'pred_file': cfg['prediction_file'],
+            'label': cfg.get('prediction_label'),
+            'instance_output': cfg.get('instance_results_file'),
+        }
+    ]
+    if cfg.get('prediction_file2'):
+        predictions.append({
+            'pred_file': cfg['prediction_file2'],
+            'label': cfg.get('prediction_label2'),
+            'instance_output': cfg.get('instance_results_file2'),
+        })
+
+    multi_run = len(predictions) > 1
+    for index, prediction in enumerate(predictions, start=1):
+        label = prediction['label'] or f'pred{index}'
+        run_name = cfg['name'] if not multi_run else sanitize_name(label)
+        instance_output = prediction['instance_output']
+        if not instance_output:
+            instance_output = osp.join(cfg['output_dir'],
+                                       f'{run_name}_instance_based.xlsx')
+        image_output = derive_image_output_path(instance_output)
+
+        run_cfg = dict(cfg)
+        run_cfg['name'] = run_name
+        run_cfg['prediction_file'] = prediction['pred_file']
+        run_specs.append({
+            'config': run_cfg,
+            'label': label,
+            'pred_file': prediction['pred_file'],
+            'instance_output': instance_output,
+            'image_output': image_output,
+        })
+
+    return run_specs
 
 
 if __name__ == '__main__':
@@ -190,16 +240,22 @@ if __name__ == '__main__':
         print('You need a "config.yaml" file with your configs set in')
 
     ann_file = cfg['annotation_file']
-    pred_file = cfg['prediction_file']
-
-    # Load coco format files
     annotations = load_json(ann_file)
-    results = load_json(pred_file)
-    polis_evaluator = polis_eval(ann_file, pred_file)
-    mta_evaluator = max_angle_error_eval(ann_file, pred_file)
-    ciou_evaluator = ciou_eval(ann_file, pred_file)
+    os.makedirs(cfg['output_dir'], exist_ok=True)
 
-    # Create tables
-    create_instance_table(cfg, annotations,
-                          (polis_evaluator, mta_evaluator, ciou_evaluator))
-    create_image_table(cfg, ann_file, pred_file)
+    for run_spec in build_run_specs(cfg):
+        run_cfg = run_spec['config']
+        pred_file = run_spec['pred_file']
+        print(f"\nProcessing prediction results: {run_spec['label']}\n")
+        print(f"Instance output: {run_spec['instance_output']}")
+        print(f"Image output: {run_spec['image_output']}\n")
+
+        polis_evaluator = polis_eval(ann_file, pred_file)
+        mta_evaluator = max_angle_error_eval(ann_file, pred_file)
+        ciou_evaluator = ciou_eval(ann_file, pred_file)
+
+        create_instance_table(run_cfg, annotations,
+                              (polis_evaluator, mta_evaluator, ciou_evaluator),
+                              run_spec['instance_output'])
+        create_image_table(run_cfg, ann_file, pred_file,
+                           run_spec['image_output'])
